@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Send a Rose 🌹</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Send a Rose</h1>
+      <p>Pick a rose, set the mood, write a note. Your link blooms for 30 minutes.</p>
+    </header>
+
+    <div class="layout">
+      <!-- Editor -->
+      <section class="panel" id="editor">
+        <div class="field">
+          <span class="label">Rose color</span>
+          <div class="swatches" id="roseSwatches"></div>
+        </div>
+
+        <div class="field">
+          <span class="label">Background</span>
+          <div class="swatches" id="bgSwatches"></div>
+        </div>
+
+        <div class="field">
+          <label for="message">Your message</label>
+          <textarea id="message" maxlength="500" placeholder="A rose for you, because…"></textarea>
+          <div class="counter"><span id="count">0</span>/500</div>
+        </div>
+
+        <button class="btn btn-primary" id="doneBtn" disabled>Done — create link 🌹</button>
+        <div class="error" id="error" role="alert"></div>
+      </section>
+
+      <!-- Share result (replaces editor after Done) -->
+      <section class="panel share hidden" id="sharePanel">
+        <h2>Your rose is ready</h2>
+        <p>Anyone with this link can see it until it wilts.</p>
+        <div class="link-row">
+          <input id="shareLink" readonly aria-label="Shareable link" />
+          <button class="btn btn-ghost" id="copyBtn">Copy</button>
+        </div>
+        <div class="timer">Expires in <strong id="shareTimer">30:00</strong></div>
+        <div class="share-actions">
+          <a class="btn btn-ghost" id="openLink" target="_blank" rel="noopener">Open link</a>
+          <button class="btn btn-ghost" id="shareBtn" hidden>Share…</button>
+          <button class="btn btn-ghost" id="againBtn">Send another</button>
+        </div>
+      </section>
+
+      <!-- Live preview -->
+      <div class="preview-wrap">
+        <div class="preview-label">Live preview</div>
+        <div class="scene" id="preview">
+          <div id="previewRose"></div>
+          <div class="note placeholder" id="previewNote">Your message will appear here</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/rose.js"></script>
+  <script>
+    const state = { color: ROSE_COLORS[0].hex, bg: 'blush', message: '' };
+
+    const $ = (id) => document.getElementById(id);
+    const preview = $('preview');
+    const messageEl = $('message');
+    const doneBtn = $('doneBtn');
+    let stopTimer = null;
+
+    function renderPreview() {
+      $('previewRose').innerHTML = roseSVG(state.color);
+      const bg = resolveBackground(state.bg);
+      preview.style.background = bg.css;
+      preview.classList.toggle('is-dark', bg.dark);
+      const note = $('previewNote');
+      note.textContent = state.message.trim() || 'Your message will appear here';
+      note.classList.toggle('placeholder', !state.message.trim());
+      doneBtn.disabled = !state.message.trim();
+    }
+
+    function setPressed(container, el) {
+      container.querySelectorAll('[aria-pressed]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      el.setAttribute('aria-pressed', 'true');
+    }
+
+    // Rose color swatches + custom picker
+    const roseWrap = $('roseSwatches');
+    ROSE_COLORS.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.type = 'button';
+      b.title = c.name;
+      b.setAttribute('aria-label', `${c.name} rose`);
+      b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+      b.style.background = c.hex;
+      b.onclick = () => { state.color = c.hex; setPressed(roseWrap, b); renderPreview(); };
+      roseWrap.appendChild(b);
+    });
+    const roseCustom = document.createElement('label');
+    roseCustom.className = 'custom-color';
+    roseCustom.title = 'Custom color';
+    roseCustom.setAttribute('aria-pressed', 'false');
+    roseCustom.innerHTML = '<input type="color" value="#8b0000" aria-label="Custom rose color" />';
+    roseCustom.querySelector('input').addEventListener('input', (e) => {
+      state.color = e.target.value; setPressed(roseWrap, roseCustom); renderPreview();
+    });
+    roseWrap.appendChild(roseCustom);
+
+    // Background swatches + custom picker
+    const bgWrap = $('bgSwatches');
+    Object.entries(BACKGROUNDS).forEach(([key, bg]) => {
+      const b = document.createElement('button');
+      b.className = 'swatch bg';
+      b.type = 'button';
+      b.title = bg.label;
+      b.setAttribute('aria-label', `${bg.label} background`);
+      b.setAttribute('aria-pressed', key === state.bg ? 'true' : 'false');
+      b.style.background = bg.css;
+      b.onclick = () => { state.bg = key; setPressed(bgWrap, b); renderPreview(); };
+      bgWrap.appendChild(b);
+    });
+    const bgCustom = document.createElement('label');
+    bgCustom.className = 'custom-color bg';
+    bgCustom.title = 'Custom background';
+    bgCustom.setAttribute('aria-pressed', 'false');
+    bgCustom.innerHTML = '<input type="color" value="#1f2937" aria-label="Custom background color" />';
+    bgCustom.querySelector('input').addEventListener('input', (e) => {
+      state.bg = e.target.value; setPressed(bgWrap, bgCustom); renderPreview();
+    });
+    bgWrap.appendChild(bgCustom);
+
+    messageEl.addEventListener('input', () => {
+      state.message = messageEl.value;
+      $('count').textContent = messageEl.value.length;
+      renderPreview();
+    });
+
+    doneBtn.addEventListener('click', async () => {
+      $('error').textContent = '';
+      doneBtn.disabled = true;
+      doneBtn.textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/roses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: state.color, bg: state.bg, message: state.message }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Something went wrong');
+        showShare(location.origin + data.url, data.remainingMs);
+      } catch (err) {
+        $('error').textContent = err.message;
+        doneBtn.disabled = false;
+      } finally {
+        doneBtn.textContent = 'Done — create link 🌹';
+      }
+    });
+
+    function showShare(url, remainingMs) {
+      $('editor').classList.add('hidden');
+      $('sharePanel').classList.remove('hidden');
+      $('shareLink').value = url;
+      $('openLink').href = url;
+      if (navigator.share) $('shareBtn').hidden = false;
+      stopTimer = startCountdown(
+        remainingMs,
+        (ms) => { $('shareTimer').textContent = formatRemaining(ms); },
+        () => { $('shareTimer').textContent = 'expired'; }
+      );
+    }
+
+    $('copyBtn').addEventListener('click', async () => {
+      const input = $('shareLink');
+      try { await navigator.clipboard.writeText(input.value); }
+      catch { input.select(); document.execCommand('copy'); }
+      $('copyBtn').textContent = 'Copied!';
+      setTimeout(() => ($('copyBtn').textContent = 'Copy'), 1500);
+    });
+
+    $('shareBtn').addEventListener('click', () => {
+      navigator.share({ title: 'A rose for you 🌹', url: $('shareLink').value }).catch(() => {});
+    });
+
+    $('againBtn').addEventListener('click', () => {
+      if (stopTimer) stopTimer();
+      $('sharePanel').classList.add('hidden');
+      $('editor').classList.remove('hidden');
+      messageEl.value = '';
+      state.message = '';
+      $('count').textContent = '0';
+      renderPreview();
+      messageEl.focus();
+    });
+
+    renderPreview();
+  </script>
+</body>
+</html>

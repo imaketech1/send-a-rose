@@ -1,0 +1,13 @@
+{
+  "name": "send-a-rose",
+  "version": "1.0.0",
+  "description": "Send a customizable rose with a message via a link that expires in 30 minutes",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

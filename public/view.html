@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A rose for you 🌹</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="scene viewer" id="scene">
+    <div class="loading" id="loading">Unwrapping your rose…</div>
+  </div>
+
+  <script src="/rose.js"></script>
+  <script>
+    const scene = document.getElementById('scene');
+    const id = location.pathname.split('/').pop();
+
+    function showWilted(title, text) {
+      scene.className = 'scene viewer';
+      scene.style.background = '#faf6ef';
+      scene.innerHTML = `
+        <div class="wilted">
+          <div class="icon">🥀</div>
+          <h1></h1>
+          <p></p>
+          <a class="btn btn-primary" href="/" style="width:auto">Send your own rose</a>
+        </div>`;
+      scene.querySelector('h1').textContent = title;
+      scene.querySelector('p').textContent = text;
+      document.title = 'This rose has wilted 🥀';
+    }
+
+    function addPetals(color) {
+      for (let i = 0; i < 14; i++) {
+        const p = document.createElement('span');
+        p.className = 'petal';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.background = color;
+        p.style.animationDuration = 7 + Math.random() * 8 + 's';
+        p.style.animationDelay = Math.random() * 8 + 's';
+        const size = 8 + Math.random() * 8; p.style.width = size + "px"; p.style.height = size * 0.75 + "px";
+        scene.appendChild(p);
+      }
+    }
+
+    async function load() {
+      try {
+        const res = await fetch(`/api/roses/${encodeURIComponent(id)}`, { cache: 'no-store' });
+        if (res.status === 410) return showWilted('This rose has wilted', 'Roses sent here only bloom for 30 minutes, and this one’s time is up.');
+        if (!res.ok) return showWilted('Rose not found', 'This link doesn’t lead to a rose. It may have expired or been mistyped.');
+        const rose = await res.json();
+
+        const bg = resolveBackground(rose.bg);
+        scene.style.background = bg.css;
+        scene.classList.toggle('is-dark', bg.dark);
+        scene.classList.add('animate');
+        scene.innerHTML = `
+          ${roseSVG(rose.color)}
+          <div class="note" id="note"></div>
+          <div class="viewer-footer">
+            <span class="pill">Wilts in <strong id="timer"></strong></span>
+            <a class="pill" href="/">Send your own 🌹</a>
+          </div>`;
+        document.getElementById('note').textContent = rose.message;
+        addPetals(rose.color);
+
+        startCountdown(
+          rose.remainingMs,
+          (ms) => { document.getElementById('timer').textContent = formatRemaining(ms); },
+          () => showWilted('This rose has wilted', 'Roses sent here only bloom for 30 minutes, and this one’s time is up.')
+        );
+      } catch {
+        showWilted('Couldn’t load this rose', 'Check your connection and try again.');
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
