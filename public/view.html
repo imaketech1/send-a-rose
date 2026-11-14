@@ -11,6 +11,11 @@
     <div class="loading" id="loading">Unwrapping your rose…</div>
   </div>
 
+  <footer class="site-footer site-footer--overlay">
+    <p>Made with ❤️</p>
+    <p>All rights reserved © 2026 <a href="https://imaketech.xyz" target="_blank" rel="noopener">imaketech</a></p>
+  </footer>
+
   <script src="/rose.js"></script>
   <script>
     const scene = document.getElementById('scene');
@@ -19,6 +24,7 @@
     function showWilted(title, text) {
       scene.className = 'scene viewer';
       scene.style.background = '#faf6ef';
+      document.body.classList.remove('is-dark');
       scene.innerHTML = `
         <div class="wilted">
           <div class="icon">🥀</div>
@@ -54,6 +60,7 @@
         const bg = resolveBackground(rose.bg);
         scene.style.background = bg.css;
         scene.classList.toggle('is-dark', bg.dark);
+        document.body.classList.toggle('is-dark', bg.dark);
         scene.classList.add('animate');
         scene.innerHTML = `
           ${roseSVG(rose.color)}
